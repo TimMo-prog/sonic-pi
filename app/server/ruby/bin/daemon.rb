@@ -179,7 +179,7 @@ module SonicPi
 
         @kill_switch = KillSwitch.new(@safe_exit)
 
-        boot_tau!
+        boot_tau!(false)
 
         @api_server = SonicPi::OSC::UDPServer.new(@ports["daemon"], suppress_errors: false, name: "Daemon API Server")
         # For debugging purposes:
@@ -217,6 +217,8 @@ module SonicPi
           end
         end
 
+        @tau_booter.wait_for_pid!
+
         # Let the calling process (likely the GUI) know which port to
         # listen to and communicate on with the Ruby spider server via
         # STDOUT.
@@ -237,11 +239,13 @@ module SonicPi
         Util.log "Exit signal received..."
       end
 
-      def boot_tau!
+      def boot_tau!(wait_for_pid = true)
         @restart_mon.synchronize do
           Util.log "Booting Tau..."
           begin
             @tau_booter = TauBooter.new(@ports, @kill_switch, @daemon_token)
+            @tau_booter.wait_for_pid! if wait_for_pid
+
           rescue StandardError => e
             Util.log "Oh no, something went wrong booting Tau"
             Util.log "Error Class: #{e.class}"
@@ -723,6 +727,10 @@ module SonicPi
 
       def update_pid!(pid)
         @tau_pid.deliver!(pid, false)
+      end
+
+      def wait_for_pid!()
+        @tau_pid.get(30)
       end
 
       def unify_tau_toml_opts(opts)
